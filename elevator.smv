@@ -1,0 +1,87 @@
+MODULE main
+	VAR
+		floor1 : process floor(1);
+		floor2 : process floor(2);
+		floor3 : process floor(3);
+		elev : process elevator();
+		moving : {up, down, idle};
+		location : {first, first-and-half, second, second-and-half, third};
+		open : boolean;
+
+	ASSIGN
+		init(moving) := idle;
+		init(location) := first;
+		init(open) := true;
+
+		next(moving) := 
+			case
+				(level = 1) & (button = up) & (location = first) & (open = FALSE) & (moving = idle) : up;
+				(level = 1) & (location = )
+			esac;
+
+
+
+MODULE floor(level, moving, location, open)
+	VAR
+		button : {up, down, none};
+
+	ASSIGN
+		init(button) := none;
+		next(button) :=
+			case
+				(level = 1) & (button = none) : {up, none};
+				(level = 1) & (button = up) & (location = first) & (moving = idle) : none;
+				(level = 2) & (button = none) : {up, down, none};
+				(level = 2) & (button = up) & (location = second) & (moving = idle) : none;
+				(level = 2) & (button = down) & (location = second) & (moving = idle) : none;
+				(level = 3) & (button = none) : {down, none};
+				(level = 3) & (button = down) & (location = third) & (moving = idle) : none;
+				TRUE : button;
+			esac;
+
+
+
+MODULE elevator(moving, location, open)
+	VAR
+		button1 : boolean;
+		button2 : boolean;
+		button3 : boolean;
+		open-button : boolean;
+
+	ASSIGN
+		init(open-button) := FALSE;
+		init(button1) := FALSE;
+		init(button2) := FALSE;
+		init(button3) := FALSE;
+
+		next(button1) := 
+			case
+				(location != first) & ((moving = down) | (moving = idle)) & (button1 = FALSE) : {TRUE, FALSE};
+				(location = first) & (button1 = TRUE) & (moving = idle) : FALSE;
+				TRUE : button1;
+			esac;
+
+		next(button2) := 
+			case
+				(((location = second-and-half) | (location = third)) & ((moving = down) | (moving = idle)) | ((location = first-and-half) | (location = first)) & ((moving = up) | (moving = idle))) & (button2 = FALSE) : {TRUE, FALSE};
+				(location = second) & (button2 = TRUE) & (moving = idle) : FALSE;
+				TRUE : button2;
+			esac;
+
+		next(button3) := 
+			case
+				(location != third) & ((moving = up) | (moving = idle)) & (button3 = FALSE) : {TRUE, FALSE};
+				(location = third) & (button3 = TRUE) & (moving = idle) : FALSE;
+				TRUE : button3;
+			esac;
+
+		next(open-button) :=
+			case
+				(open-button = FALSE) & (moving = idle) : {TRUE, FALSE};
+				(open-button = TRUE) : FALSE;
+				TRUE : open-button;
+			esac;
+
+
+
+	
