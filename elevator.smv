@@ -1,9 +1,9 @@
 MODULE main
 	VAR
-		floor1 : process floor(1, moving, location, open, request);
-		floor2 : process floor(2, moving, location, open, request);
-		floor3 : process floor(3, moving, location, open, request);
-		elev : process elevator(moving, location, open, request);
+		floor1 : floor(1, moving, location, open, request);
+		floor2 : floor(2, moving, location, open, request);
+		floor3 : floor(3, moving, location, open, request);
+		elev : elevator(moving, location, open, request);
 		moving : {up, down, idle};
 		location : {first, first-and-half, second, second-and-half, third};
 		request : {uprequest3, uprequest2, downrequest2, downrequest1, norequest};
@@ -12,61 +12,104 @@ MODULE main
 	ASSIGN
 		init(moving) := idle;
 		init(location) := first;
-		init(open) := true;
+		init(open) := TRUE;
 		init(request) := norequest;
-
-		--next(moving) := 
-		--	case
-		--		(level = 1) & (button = up) & (location = first) & (open = FALSE) & (moving = idle) : up;
-		--		(level = 1) & (location = )
-		--	esac;
-
-
-
-MODULE floor(level, moving, location, open, request)
-	VAR
-		button : {on, off};
-
-	ASSIGN
-		init(button) := none;
-		next(button) :=
-			case
-				(level = 1) & (button = off) & ((location = first) & (moving = idle) | (location = first-and-half) & (moving = down)) : off;
-				(level = 1) & (button = off) : {on, off};
-				(level = 1) & (button = on) & (location = first-and-half) & (moving = down) : off;
-				(level = 1) & (button = on) : on;
-
-				(level = 2) & (button = off) & ((location = second) & (moving = idle) | (location = first-and-half) & (moving = up) | (location = second-and-half) & (moving = down)) : off;
-				(level = 2) & (button = off) : {on, off};
-				(level = 2) & (button = on) & ((location = first-and-half) & (moving = up) | (location = second-and-half) & (moving = down)) : off;
-				(level = 2) & (button = on) : on;
-
-				(level = 3) & (button = off) & ((location = third) & (moving = idle) | (location = second-and-half) & (moving = up)) : off;
-				(level = 3) & (button = off) : {on, off};
-				(level = 3) & (button = on) & (location = second-and-half) & (moving = up) : off;
-				(level = 3) & (button = on) : on;
-				
-				TRUE : button;
-			esac;
 
 		next(request) :=
 			case
-				(level = 1) & (button = on) & (request = norequest) : downrequest1;
-				(level = 1) & (button = on) & (request = downrequest2) : downrequest1;
+				(floor1.button = TRUE) & (request = norequest) : downrequest1;
+				(floor1.button = TRUE) & (request = downrequest2) : downrequest1;
 
-				(level = 2) & (button = on) & (request = norequest) & (location = first) : uprequest2;
-				(level = 2) & (button = on) & (request = norequest) & (location = third) : downrequest2;
+				(floor2.button = TRUE) & (request = norequest) & (location = first) : uprequest2;
+				(floor2.button = TRUE) & (request = norequest) & (location = third) : downrequest2;
 
-				(level = 3) & (button = on) & (request = norequest) : uprequest3;
-				(level = 3) & (button = on) & (request = uprequest2) : uprequest3;
+				(floor3.button = TRUE) & (request = norequest) : uprequest3;
+				(floor3.button = TRUE) & (request = uprequest2) : uprequest3;
 
 				(location = first-and-half) & (moving = down) & (request = downrequest1) : norequest; --!!!--
 				(location = first-and-half) & (moving = up) & (request = uprequest2) | (location = second-and-half) & (moving = down) & (request = downrequest2) : norequest;
-				(locaion = second-and-half) & (moving = up) & (request = uprequest3) : norequest;
+				(location = second-and-half) & (moving = up) & (request = uprequest3) : norequest;
+
+				(elev.button1 = TRUE) & (request = norequest) : downrequest1;
+				(elev.button1 = TRUE) & (request = downrequest2) : downrequest1;
+
+				(elev.button2 = TRUE) & (request = norequest) & (location = first) : uprequest2;
+				(elev.button2 = TRUE) & (request = norequest) & (location = third) : downrequest2;
+
+				(elev.button3 = TRUE) & (request = norequest) : uprequest3;
+				(elev.button3 = TRUE) & (request = uprequest2) : uprequest3;
 
 				TRUE : request;
 			esac;
 
+	--liveness
+	SPEC AG(floor1.button = TRUE -> AF(location = first & moving = idle & open = TRUE))
+	SPEC AG(floor2.button = TRUE -> AF(location = second & moving = idle & open = TRUE))
+	SPEC AG(floor3.button = TRUE -> AF(location = third & moving = idle & open = TRUE))
+	SPEC AG(elev.button1 = TRUE -> AF(location = first & moving = idle & open = TRUE))
+	SPEC AG(elev.button2 = TRUE -> AF(location = second & moving = idle & open = TRUE))
+	SPEC AG(elev.button3 = TRUE -> AF(location = third & moving = idle & open = TRUE))
+
+	--never move with door open
+	SPEC AG((moving = up) | (moving = down) -> (open = FALSE))
+
+	--door remains open until a request
+	SPEC AG(request = norequest -> open = TRUE)
+
+	-- It takes exactly 2 time units for the elevator to move between two consecutive floors.
+	SPEC AG(location = first & moving = up -> AX(location = first-and-half) & AX(AX(location = second)))
+	SPEC AG(location = second & moving = up -> AX(location = second-and-half) & AX(AX(location = third)))
+	SPEC AG(location = third & moving = down -> AX(location = second-and-half) & AX(AX(location = second)))
+	SPEC AG(location = second & moving = down -> AX(location = first-and-half) & AX(AX(location = first)))
+
+	--If there are no requests for another floor, the elevator should not move
+	SPEC AG((request = norequest -> moving = idle))
+	SPEC AG(((request = norequest & location = first) -> AX(location = first)) & ((request = norequest & location = second) -> AX(location = second)) & ((request = norequest & location = third) -> AX(location = third)))
+
+	--cannot change direction between floors
+	SPEC AG(location = first-and-half & moving = up -> AX(location = second))
+	SPEC AG(location = first-and-half & moving = down -> AX(location = first))
+	SPEC AG(location = second-and-half & moving = up -> AX(location = third))
+	SPEC AG(location = second-and-half & moving = down -> AX(location = second))
+
+	--The buttons in the elevator can always be pushed when there is no request
+	SPEC AG((location = first) & (request = norequest) -> EX(elev.button2 = TRUE | elev.button3 = TRUE))
+	SPEC AG((location = second) & (request = norequest) -> EX(elev.button1 = TRUE | elev.button3 = TRUE))
+	SPEC AG((location = third) & (request = norequest) -> EX(elev.button1 = TRUE | elev.button2 = TRUE))
+
+	--The buttons in the floor can always be pushed if the elevator is not at that floor and the elevator will not arrive that floor in the next state.
+	SPEC AG(!(location = first) & !((location = first-and-half) & (moving = down)) -> EX(floor1.button = TRUE))
+	SPEC AG(!(location = second) & !((location = first-and-half) & (moving = up)) & !((location = second-and-half) & (moving = down)) -> EX(floor2.button = TRUE))
+	SPEC AG(!(location = third) & !((location = second-and-half) & (moving = up)) -> EX(floor3.button = TRUE))
+
+	SPEC EF(floor1.button = TRUE & floor2.button = TRUE & floor3.button = TRUE)
+
+
+MODULE floor(level, moving, location, open, request)
+	VAR
+		button : boolean;
+
+	ASSIGN
+		init(button) := FALSE;
+		next(button) :=
+			case
+				(level = 1) & (button = FALSE) & ((location = first) & (moving = idle) | (location = first-and-half) & (moving = down)) : FALSE;
+				(level = 1) & (button = FALSE) : {TRUE, FALSE};
+				(level = 1) & (button = TRUE) & (location = first-and-half) & (moving = down) : FALSE;
+				(level = 1) & (button = TRUE) : TRUE;
+
+				(level = 2) & (button = FALSE) & ((location = second) & (moving = idle) | (location = first-and-half) & (moving = up) | (location = second-and-half) & (moving = down)) : FALSE;
+				(level = 2) & (button = FALSE) : {TRUE, FALSE};
+				(level = 2) & (button = TRUE) & ((location = first-and-half) & (moving = up) | (location = second-and-half) & (moving = down)) : FALSE;
+				(level = 2) & (button = TRUE) : TRUE;
+
+				(level = 3) & (button = FALSE) & ((location = third) & (moving = idle) | (location = second-and-half) & (moving = up)) : FALSE;
+				(level = 3) & (button = FALSE) : {TRUE, FALSE};
+				(level = 3) & (button = TRUE) & (location = second-and-half) & (moving = up) : FALSE;
+				(level = 3) & (button = TRUE) : TRUE;
+				
+				TRUE : button;
+			esac;
 
 
 MODULE elevator(moving, location, open, request)
@@ -113,20 +156,6 @@ MODULE elevator(moving, location, open, request)
 				TRUE : open-button;
 			esac;
 
-		next(request) := 
-			case
-				(button1 = TRUE) & (request = norequest) : downrequest1;
-				(button1 = TRUE) & (request = downrequest2) : downrequest1;
-
-				(button2 = TRUE) & (request = norequest) & (location = first) : uprequest2;
-				(button2 = TRUE) & (request = norequest) & (location = third) : downrequest2;
-
-				(button3 = TRUE) & (request = norequest) : uprequest3;
-				(button3 = TRUE) & (request = uprequest2) : uprequest3;
-
-				TRUE: request;
-			esac;
-
 		next(location) := 
 			case
 				(moving = up) & (location = first) : first-and-half;
@@ -169,10 +198,8 @@ MODULE elevator(moving, location, open, request)
 				(open = FALSE) & (request = downrequest2) & (location = second-and-half) : TRUE;
 				(open = FALSE) & (request = downrequest1) & (location = second-and-half) : TRUE;
 				(open = FALSE) & (request = downrequest1) & (location = first-and-half) : TRUE;
+
+				TRUE : open;
 			esac;
 
-
-
-
-
-	
+	FAIRNESS (open-button = FALSE);

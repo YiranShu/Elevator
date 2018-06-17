@@ -9,6 +9,7 @@ MODULE main
 		-- - Example: Wait_List1=3, Wait_List2=1, Wait_List3=0, means:
 		-- - There are processes 1 and 3 waiting and
 		-- - process 3 will be the first one accessing the resource.
+
 		Wait_List1: {0, 1, 2, 3};
 		Wait_List2: {0, 1, 2, 3};
 		Wait_List3: {0, 1, 2, 3};
@@ -21,20 +22,52 @@ MODULE main
 		init(Wait_List1) := 0;
 		init(Wait_List2) := 0;
 		init(Wait_List3) := 0;
-		-- resource_st is a boolean variable that is true
-		-- when the resource is used by one of the processes.
-
+		
 	DEFINE
 		resource_st := (pr1.st = c) | (pr2.st = c) | (pr3.st = c);
-------------------------------------------------------------
----------- PROCESS MODULE ----------------------------------
-------------------------------------------------------------
+
+	--safety
+	SPEC AG!((pr1.st = c) & (pr2.st = c) | (pr1.st = c) & (pr3.st = c) | (pr2.st = c) & (pr3.st = c))
+
+	--liveness
+    SPEC AG((pr1.st = t) -> AF(pr1.st = c) & (pr2.st = t) -> AF(pr2.st = c) & (pr3.st = t) -> AF(pr3.st = c))
+
+    --FIFO queue
+    SPEC AG((Wait_List1 = 1 & Wait_List2 = 2) -> A [!(pr1.st = c) & !(pr2.st = c) U (pr1.st = c) & !(pr2.st = c)])
+    SPEC AG((Wait_List2 = 1 & Wait_List3 = 2) -> A [!(pr1.st = c) & !(pr2.st = c) U (pr1.st = c) & !(pr2.st = c)])
+    SPEC AG((Wait_List1 = 1 & Wait_List3 = 2) -> A [!(pr1.st = c) & !(pr2.st = c) U (pr1.st = c) & !(pr2.st = c)])
+
+    --non-blocking
+    SPEC AG((pr1.st = n -> EX(pr1.st = t)) & (pr2.st = n -> EX(pr2.st = t)) & (pr3.st = n -> EX(pr3.st = t)))
+
+    --It is impossible that there are duplicate processes in the waiting list
+    SPEC AG(!((Wait_List1 = 1) & (Wait_List2 = 1)) & !((Wait_List1 = 1) & (Wait_List3 = 1)) & !((Wait_List2 = 1) & (Wait_List3 = 1)))
+    SPEC AG(!((Wait_List1 = 2) & (Wait_List2 = 2)) & !((Wait_List1 = 2) & (Wait_List3 = 2)) & !((Wait_List2 = 2) & (Wait_List3 = 2)))
+    SPEC AG(!((Wait_List1 = 3) & (Wait_List2 = 3)) & !((Wait_List1 = 3) & (Wait_List3 = 3)) & !((Wait_List2 = 3) & (Wait_List3 = 3)))
+
+    --All processes in the waiting list are trying to enter the critical section
+    SPEC AG((Wait_List1 = 1 | Wait_List2 = 1 | Wait_List3 = 1) -> pr1.st = t)
+    SPEC AG((Wait_List1 = 2 | Wait_List2 = 2 | Wait_List3 = 2) -> pr2.st = t)
+    SPEC AG((Wait_List1 = 3 | Wait_List2 = 3 | Wait_List3 = 3) -> pr3.st = t)
+
+    --All processes that are trying to enter the critical section cannot be changed into NonCritical without entering the critical section
+    SPEC AG(pr1.st = t -> (A[ pr1.st = t U pr1.st = c]))
+    SPEC AG(pr2.st = t -> (A[ pr2.st = t U pr2.st = c]))
+    SPEC AG(pr3.st = t -> (A[ pr3.st = t U pr3.st = c]))
+
+    --The second position in the waiting list will be filled only if the first position is occupied
+    --The third position in the waiting list will be filled only if the first position and the second position are occupied
+    SPEC AG(!(Wait_List2 = 0) -> !(Wait_List1 = 0))
+    SPEC AG(!(Wait_List3 = 0) -> !(Wait_List1 = 0) & !(Wait_List2 = 0))
+
+
 MODULE prc(Wait_List1, Wait_List2, Wait_List3, resource_st, myturn)
 	VAR
 		-- Variable "st" codifies the current status of each process
 		-- - "n": NonCritical: outside the critical section;
 		-- - "t": Trying: trying to enter the critical section;
 		-- - "c": Critical: inside the critical section.
+
 		st: {n, t, c};
 	ASSIGN
 		init(st) := n;
@@ -46,23 +79,20 @@ MODULE prc(Wait_List1, Wait_List2, Wait_List3, resource_st, myturn)
 		esac;
 		
 		next(Wait_List1) := case
-			--???
 			(Wait_List1 = 0) & (st = t) : myturn;
-			!resource_st : Wait_List2;
+			(Wait_List1 = myturn) & !resource_st : Wait_List2;
 			TRUE : Wait_List1;
 		esac;
 
 		next(Wait_List2) := case
-			--???
-			(Wait_List2 = 0) & !(Wait_List1 = 0) & (st = t) : myturn;
-			!resource_st : Wait_List3;
+			(Wait_List2 = 0) & !(Wait_List1 = 0) & !(Wait_List1 = myturn) & !(Wait_List3 = myturn) & (st = t) : myturn;
+			(Wait_List1 = myturn) & !resource_st : Wait_List3;
 			TRUE : Wait_List2;
 		esac;
 
 		next(Wait_List3) := case
-			--???
-			(Wait_List3 = 0) & !(Wait_List2 = 0) & (st = t) : myturn;
-			!resource_st = 0;
+			(Wait_List3 = 0) & !(Wait_List2 = 0) & !(Wait_List1 = 0) & !(Wait_List1 = myturn) & !(Wait_List2 = myturn) & (st = t) : myturn;
+			(Wait_List1 = myturn) & !resource_st : 0;
 			TRUE : Wait_List3;
 		esac;
 
