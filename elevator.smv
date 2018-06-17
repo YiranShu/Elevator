@@ -6,12 +6,14 @@ MODULE main
 		elev : process elevator();
 		moving : {up, down, idle};
 		location : {first, first-and-half, second, second-and-half, third};
+		request : {uprequest3, uprequest2, downrequest2, downrequest1, norequest};
 		open : boolean;
 
 	ASSIGN
 		init(moving) := idle;
 		init(location) := first;
 		init(open) := true;
+		init(request) := norequest;
 
 		next(moving) := 
 			case
@@ -21,27 +23,53 @@ MODULE main
 
 
 
-MODULE floor(level, moving, location, open)
+MODULE floor(level, moving, location, open, request)
 	VAR
-		button : {up, down, none};
+		button : {on, off};
 
 	ASSIGN
 		init(button) := none;
 		next(button) :=
 			case
-				(level = 1) & (button = none) : {up, none};
-				(level = 1) & (button = up) & (location = first) & (moving = idle) : none;
-				(level = 2) & (button = none) : {up, down, none};
-				(level = 2) & (button = up) & (location = second) & (moving = idle) : none;
-				(level = 2) & (button = down) & (location = second) & (moving = idle) : none;
-				(level = 3) & (button = none) : {down, none};
-				(level = 3) & (button = down) & (location = third) & (moving = idle) : none;
+				(level = 1) & (button = off) & ((location = first) & (moving = idle) | (location = first_and_half) & (moving = down)) : off;
+				(level = 1) & (button = off) : {on, off};
+				(level = 1) & (button = on) & (location = first_and_half) & (moving = down) : off;
+				(level = 1) & (button = on) : on;
+
+				(level = 2) & (button = off) & ((location = second) & (moving = idle) | (location = first_and_half) & (moving = up) | (location = second_and_half) & (moving = down)) : off;
+				(level = 2) & (button = off) : {on, off};
+				(level = 2) & (button = on) & ((location = first_and_half) & (moving = up) | (location = second_and_half) & (moving = down)) : off;
+				(level = 2) & (button = on) : on;
+
+				(level = 3) & (button = off) & ((location = third) & (moving = idle) | (location = second_and_half) & (moving = up)) : off;
+				(level = 3) & (button = off) : {on, off};
+				(level = 3) & (button = on) & (location = second_and_half) & (moving = up) : off;
+				(level = 3) & (button = on) : on;
+				
 				TRUE : button;
+			esac;
+
+		next(request) :=
+			case
+				(level = 1) & (button = on) & (request = norequest) : downrequest1;
+				(level = 1) & (button = on) & (request = downrequest2) : downrequest1;
+
+				(level = 2) & (button = on) & (request = norequest) & (location = first) : uprequest2;
+				(level = 2) & (button = on) & (request = norequest) & (location = third) : downrequest2;
+
+				(level = 3) & (button = on) & (request = norequest) : uprequest3;
+				(level = 3) & (button = on) & (request = uprequest2) : uprequest3;
+
+				(location = first_and_half) & (moving = down) & (request = downrequest1) : norequest; --!!!--
+				(location = first_and_half) & (moving = up) & (request = uprequest2) | (location = second_and_half) & (moving = down) & (request = downrequest2) : norequest;
+				(locaion = second_and_half) & (moving = up) & (request = uprequest3) : norequest;
+
+				TRUE : request;
 			esac;
 
 
 
-MODULE elevator(moving, location, open)
+MODULE elevator(moving, location, open, request)
 	VAR
 		button1 : boolean;
 		button2 : boolean;
@@ -56,31 +84,94 @@ MODULE elevator(moving, location, open)
 
 		next(button1) := 
 			case
-				(location != first) & ((moving = down) | (moving = idle)) & (button1 = FALSE) : {TRUE, FALSE};
-				(location = first) & (button1 = TRUE) & (moving = idle) : FALSE;
+				(button1 = FALSE) & (location = third) & (request = norequest) : {TRUE, FALSE};
+				(button1 = FALSE) & (location = second) & (request = norequest) : {TRUE, FALSE};
+				(button1 = TRUE) & (location = first_and_half) & (moving = down) : FALSE;
 				TRUE : button1;
 			esac;
 
 		next(button2) := 
 			case
-				(((location = second-and-half) | (location = third)) & ((moving = down) | (moving = idle)) | ((location = first-and-half) | (location = first)) & ((moving = up) | (moving = idle))) & (button2 = FALSE) : {TRUE, FALSE};
-				(location = second) & (button2 = TRUE) & (moving = idle) : FALSE;
+				(button2 = FALSE) & (location = third) & (request = norequest) : {TRUE, FALSE};
+				(button2 = FALSE) & (location = first) & (request = norequest) : {TRUE, FALSE};
+				(button2 = TRUE) & ((location = first_and_half) & (moving = up) | (location = second_and_half) & (moving = down)) : FALSE;
 				TRUE : button2;
 			esac;
 
 		next(button3) := 
 			case
-				(location != third) & ((moving = up) | (moving = idle)) & (button3 = FALSE) : {TRUE, FALSE};
-				(location = third) & (button3 = TRUE) & (moving = idle) : FALSE;
+				(button3 = FALSE) & (location = first) & (request = norequest) : {TRUE, FALSE};
+				(button3 = FALSE) & (location = second) & (request = norequest) : {TRUE, FALSE};
+				(button3 = TRUE) & (location = second_and_half) & (moving = up) : FALSE;
 				TRUE : button3;
 			esac;
 
 		next(open-button) :=
 			case
-				(open-button = FALSE) & (moving = idle) : {TRUE, FALSE};
+				(open-button = FALSE) & (request = norequest) : {TRUE, FALSE};
 				(open-button = TRUE) : FALSE;
 				TRUE : open-button;
 			esac;
+
+		next(request) := 
+			case
+				(button1 = TRUE) & (request = norequest) : downrequest1;
+				(button1 = TRUE) & (request = downrequest2) : downrequest1;
+
+				(button2 = TRUE) & (request = norequest) & (location = first) : uprequest2;
+				(button2 = TRUE) & (request = norequest) & (location = third) : downrequest2;
+
+				(button3 = TRUE) & (request = norequest) : uprequest3;
+				(button3 = TRUE) & (request = uprequest2) : uprequest3;
+
+				TRUE: request;
+			esac;
+
+		next(location) := 
+			case
+				(moving = up) & (location = first) : first_and_half;
+				(moving = up) & (location = first_and_half) : second;
+				(moving = up) & (location = second) : second_and_half;
+				(moving = up) & (location = second_and_half) : third;
+
+				(moving = down) & (location = third) : second_and_half;
+				(moving = down) & (location = second_and_half) : second;
+				(moving = down) & (location = second) : first_and_half;
+				(moving = down) & (location = first_and_half) : first;
+
+				TRUE : location;
+			esac;
+
+		next(moving) := 
+			case
+				(moving = idle) & (open-button = FALSE) & ((request = uprequest2) | (request = uprequest3)) : up;
+				(moving = idle) & (open-button = FALSE) & ((request = downrequest2) | (request = downrequest1)) : down;
+				(moving = up) & (request = uprequest2) & (location = first_and_half) : idle;
+				(moving = up) & (request = uprequest3) & (location = second_and_half) : idle;
+				(moving = up) & (request = uprequest3) & (location = first_and_half) : idle;
+
+				(moving = down) & (request = downrequest2) & (location = second_and_half) : idle;
+				(moving = down) & (request = downrequest1) & (location = second_and_half) : idle;
+				(moving = down) & (request = downrequest1) & (location = first_and_half) : idle;
+
+				TRUE : moving;
+			esac;
+
+		next(open) := 
+			case
+				(open = TRUE) & (open-button = FALSE) & ((request = uprequest2) | (request = uprequest3)) : FALSE;
+				(open = TRUE) & (open-button = FALSE) & ((request = downrequest2) | (request = downrequest1)) : FALSE;
+
+				(open = FALSE) & (request = uprequest2) & (location = first_and_half) : TRUE;
+				(open = FALSE) & (request = uprequest3) & (location = second_and_half) : TRUE;
+				(open = FALSE) & (request = uprequest3) & (location = first_and_half) : TRUE;
+
+				(open = FALSE) & (request = downrequest2) & (location = second_and_half) : TRUE;
+				(open = FALSE) & (request = downrequest1) & (location = second_and_half) : TRUE;
+				(open = FALSE) & (request = downrequest1) & (location = first_and_half) : TRUE;
+			esac;
+
+
 
 
 
