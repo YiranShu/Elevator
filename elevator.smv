@@ -1,9 +1,9 @@
 MODULE main
 	VAR
-		floor1 : process floor(1);
-		floor2 : process floor(2);
-		floor3 : process floor(3);
-		elev : process elevator();
+		floor1 : process floor(1, moving, location, open, request);
+		floor2 : process floor(2, moving, location, open, request);
+		floor3 : process floor(3, moving, location, open, request);
+		elev : process elevator(moving, location, open, request);
 		moving : {up, down, idle};
 		location : {first, first-and-half, second, second-and-half, third};
 		request : {uprequest3, uprequest2, downrequest2, downrequest1, norequest};
@@ -15,11 +15,11 @@ MODULE main
 		init(open) := true;
 		init(request) := norequest;
 
-		next(moving) := 
-			case
-				(level = 1) & (button = up) & (location = first) & (open = FALSE) & (moving = idle) : up;
-				(level = 1) & (location = )
-			esac;
+		--next(moving) := 
+		--	case
+		--		(level = 1) & (button = up) & (location = first) & (open = FALSE) & (moving = idle) : up;
+		--		(level = 1) & (location = )
+		--	esac;
 
 
 
@@ -31,19 +31,19 @@ MODULE floor(level, moving, location, open, request)
 		init(button) := none;
 		next(button) :=
 			case
-				(level = 1) & (button = off) & ((location = first) & (moving = idle) | (location = first_and_half) & (moving = down)) : off;
+				(level = 1) & (button = off) & ((location = first) & (moving = idle) | (location = first-and-half) & (moving = down)) : off;
 				(level = 1) & (button = off) : {on, off};
-				(level = 1) & (button = on) & (location = first_and_half) & (moving = down) : off;
+				(level = 1) & (button = on) & (location = first-and-half) & (moving = down) : off;
 				(level = 1) & (button = on) : on;
 
-				(level = 2) & (button = off) & ((location = second) & (moving = idle) | (location = first_and_half) & (moving = up) | (location = second_and_half) & (moving = down)) : off;
+				(level = 2) & (button = off) & ((location = second) & (moving = idle) | (location = first-and-half) & (moving = up) | (location = second-and-half) & (moving = down)) : off;
 				(level = 2) & (button = off) : {on, off};
-				(level = 2) & (button = on) & ((location = first_and_half) & (moving = up) | (location = second_and_half) & (moving = down)) : off;
+				(level = 2) & (button = on) & ((location = first-and-half) & (moving = up) | (location = second-and-half) & (moving = down)) : off;
 				(level = 2) & (button = on) : on;
 
-				(level = 3) & (button = off) & ((location = third) & (moving = idle) | (location = second_and_half) & (moving = up)) : off;
+				(level = 3) & (button = off) & ((location = third) & (moving = idle) | (location = second-and-half) & (moving = up)) : off;
 				(level = 3) & (button = off) : {on, off};
-				(level = 3) & (button = on) & (location = second_and_half) & (moving = up) : off;
+				(level = 3) & (button = on) & (location = second-and-half) & (moving = up) : off;
 				(level = 3) & (button = on) : on;
 				
 				TRUE : button;
@@ -60,9 +60,9 @@ MODULE floor(level, moving, location, open, request)
 				(level = 3) & (button = on) & (request = norequest) : uprequest3;
 				(level = 3) & (button = on) & (request = uprequest2) : uprequest3;
 
-				(location = first_and_half) & (moving = down) & (request = downrequest1) : norequest; --!!!--
-				(location = first_and_half) & (moving = up) & (request = uprequest2) | (location = second_and_half) & (moving = down) & (request = downrequest2) : norequest;
-				(locaion = second_and_half) & (moving = up) & (request = uprequest3) : norequest;
+				(location = first-and-half) & (moving = down) & (request = downrequest1) : norequest; --!!!--
+				(location = first-and-half) & (moving = up) & (request = uprequest2) | (location = second-and-half) & (moving = down) & (request = downrequest2) : norequest;
+				(locaion = second-and-half) & (moving = up) & (request = uprequest3) : norequest;
 
 				TRUE : request;
 			esac;
@@ -86,7 +86,7 @@ MODULE elevator(moving, location, open, request)
 			case
 				(button1 = FALSE) & (location = third) & (request = norequest) : {TRUE, FALSE};
 				(button1 = FALSE) & (location = second) & (request = norequest) : {TRUE, FALSE};
-				(button1 = TRUE) & (location = first_and_half) & (moving = down) : FALSE;
+				(button1 = TRUE) & (location = first-and-half) & (moving = down) : FALSE;
 				TRUE : button1;
 			esac;
 
@@ -94,7 +94,7 @@ MODULE elevator(moving, location, open, request)
 			case
 				(button2 = FALSE) & (location = third) & (request = norequest) : {TRUE, FALSE};
 				(button2 = FALSE) & (location = first) & (request = norequest) : {TRUE, FALSE};
-				(button2 = TRUE) & ((location = first_and_half) & (moving = up) | (location = second_and_half) & (moving = down)) : FALSE;
+				(button2 = TRUE) & ((location = first-and-half) & (moving = up) | (location = second-and-half) & (moving = down)) : FALSE;
 				TRUE : button2;
 			esac;
 
@@ -102,7 +102,7 @@ MODULE elevator(moving, location, open, request)
 			case
 				(button3 = FALSE) & (location = first) & (request = norequest) : {TRUE, FALSE};
 				(button3 = FALSE) & (location = second) & (request = norequest) : {TRUE, FALSE};
-				(button3 = TRUE) & (location = second_and_half) & (moving = up) : FALSE;
+				(button3 = TRUE) & (location = second-and-half) & (moving = up) : FALSE;
 				TRUE : button3;
 			esac;
 
@@ -129,15 +129,15 @@ MODULE elevator(moving, location, open, request)
 
 		next(location) := 
 			case
-				(moving = up) & (location = first) : first_and_half;
-				(moving = up) & (location = first_and_half) : second;
-				(moving = up) & (location = second) : second_and_half;
-				(moving = up) & (location = second_and_half) : third;
+				(moving = up) & (location = first) : first-and-half;
+				(moving = up) & (location = first-and-half) : second;
+				(moving = up) & (location = second) : second-and-half;
+				(moving = up) & (location = second-and-half) : third;
 
-				(moving = down) & (location = third) : second_and_half;
-				(moving = down) & (location = second_and_half) : second;
-				(moving = down) & (location = second) : first_and_half;
-				(moving = down) & (location = first_and_half) : first;
+				(moving = down) & (location = third) : second-and-half;
+				(moving = down) & (location = second-and-half) : second;
+				(moving = down) & (location = second) : first-and-half;
+				(moving = down) & (location = first-and-half) : first;
 
 				TRUE : location;
 			esac;
@@ -146,13 +146,13 @@ MODULE elevator(moving, location, open, request)
 			case
 				(moving = idle) & (open-button = FALSE) & ((request = uprequest2) | (request = uprequest3)) : up;
 				(moving = idle) & (open-button = FALSE) & ((request = downrequest2) | (request = downrequest1)) : down;
-				(moving = up) & (request = uprequest2) & (location = first_and_half) : idle;
-				(moving = up) & (request = uprequest3) & (location = second_and_half) : idle;
-				(moving = up) & (request = uprequest3) & (location = first_and_half) : idle;
+				(moving = up) & (request = uprequest2) & (location = first-and-half) : idle;
+				(moving = up) & (request = uprequest3) & (location = second-and-half) : idle;
+				(moving = up) & (request = uprequest3) & (location = first-and-half) : idle;
 
-				(moving = down) & (request = downrequest2) & (location = second_and_half) : idle;
-				(moving = down) & (request = downrequest1) & (location = second_and_half) : idle;
-				(moving = down) & (request = downrequest1) & (location = first_and_half) : idle;
+				(moving = down) & (request = downrequest2) & (location = second-and-half) : idle;
+				(moving = down) & (request = downrequest1) & (location = second-and-half) : idle;
+				(moving = down) & (request = downrequest1) & (location = first-and-half) : idle;
 
 				TRUE : moving;
 			esac;
@@ -162,13 +162,13 @@ MODULE elevator(moving, location, open, request)
 				(open = TRUE) & (open-button = FALSE) & ((request = uprequest2) | (request = uprequest3)) : FALSE;
 				(open = TRUE) & (open-button = FALSE) & ((request = downrequest2) | (request = downrequest1)) : FALSE;
 
-				(open = FALSE) & (request = uprequest2) & (location = first_and_half) : TRUE;
-				(open = FALSE) & (request = uprequest3) & (location = second_and_half) : TRUE;
-				(open = FALSE) & (request = uprequest3) & (location = first_and_half) : TRUE;
+				(open = FALSE) & (request = uprequest2) & (location = first-and-half) : TRUE;
+				(open = FALSE) & (request = uprequest3) & (location = second-and-half) : TRUE;
+				(open = FALSE) & (request = uprequest3) & (location = first-and-half) : TRUE;
 
-				(open = FALSE) & (request = downrequest2) & (location = second_and_half) : TRUE;
-				(open = FALSE) & (request = downrequest1) & (location = second_and_half) : TRUE;
-				(open = FALSE) & (request = downrequest1) & (location = first_and_half) : TRUE;
+				(open = FALSE) & (request = downrequest2) & (location = second-and-half) : TRUE;
+				(open = FALSE) & (request = downrequest1) & (location = second-and-half) : TRUE;
+				(open = FALSE) & (request = downrequest1) & (location = first-and-half) : TRUE;
 			esac;
 
 
